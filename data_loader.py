@@ -82,26 +82,30 @@ class ImageDataset():
     def preprocess(self, features:np.ndarray)->None:
         """Main function for preprocessing images"""
 
-        for img in tqdm(features[:5]):
-            print("Before ", img[0][0])
+        for img in tqdm(features):
+            # print("Before ", img[0][0])
             # self.display_one(img)
             img = self.normalize_image_pixels(img)
-            print("After ", img[0][0])
+            # print("After ", img[0][0])
             # self.display_one(img)
 
     def normalize_image_pixels(self, image:np.ndarray)->np.ndarray:
         """Function to normalize the image pixels. Assumes that the np.ndarray passed in contains values
-            from [0,255] and normalizes it down to a value that is [0, 1)"""
+            from [0,255] and normalizes it down to a value that is [0, 1)
+
+            Revised to preprocess based on zero mean/unit variance, old code commented out"""
 
         # for normalizing pixels
         # return np.divide(image, 255.0)
 
         # for converting images to zero mean and unit variance
+        # formula: z-score = x - mean / std
         # return (image - image.mean()) / image.std()
         return np.divide(np.subtract(image, np.mean(image)), np.std(image))
 
     def setup_batch_iterator(self, features:np.ndarray, labels:np.ndarray):
         """Function to construct a TensorFlow dataset and set up the batch iterator"""
+        print("Setting up batch iterator...")
         data_x = tf.data.Dataset.from_tensor_slices(features)
         data_y = tf.data.Dataset.from_tensor_slices(labels)
         data = tf.data.Dataset.zip((data_x, data_y)).batch(2)
