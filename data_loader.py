@@ -1,8 +1,10 @@
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-import cv2
 import pickle
+from tqdm import tqdm
+import os
+import warnings
 
 class ImageDataset():
     train = None
@@ -17,10 +19,15 @@ class ImageDataset():
     x_valid = None
     y_valid = None
 
+    x_batch = None
+    y_batch = None
+
     tf_sess = None
     shape = None
     num_classes = None
     batch_size = 256
+    repeat_size = 5
+    shuffle = 5
 
 
     def __init__(self, dir):
@@ -28,8 +35,8 @@ class ImageDataset():
         print("TensorFlow Version: ", tf.__version__)
         self.tf_sess = tf.Session()
         self.load(dir)
-        self.preprocess(self.train['features'])
-        self.setup_batch_iterator(self.train['features'], self.train['labels'])
+        self.preprocess(self.x_train)
+        self.setup_batch_iterator(self.x_train, self.y_train)
 
     def load(self, directory:str)->None:
         """Populates the train, test, and validation global variables with raw data from the pickled files"""
@@ -75,7 +82,7 @@ class ImageDataset():
     def preprocess(self, features:np.ndarray)->None:
         """Main function for preprocessing images"""
 
-        for img in features[:5]:
+        for img in tqdm(features[:5]):
             print("Before ", img[0][0])
             # self.display_one(img)
             img = self.normalize_image_pixels(img)
@@ -86,21 +93,39 @@ class ImageDataset():
         """Function to normalize the image pixels. Assumes that the np.ndarray passed in contains values
             from [0,255] and normalizes it down to a value that is [0, 1)"""
 
-        return np.divide(image, 255.0)
+        # for normalizing pixels
+        # return np.divide(image, 255.0)
+
+        # for converting images to zero mean and unit variance
+        # return (image - image.mean()) / image.std()
+        return np.divide(np.subtract(image, np.mean(image)), np.std(image))
 
     def setup_batch_iterator(self, features:np.ndarray, labels:np.ndarray):
         """Function to construct a TensorFlow dataset and set up the batch iterator"""
-        pass
+        data_x = tf.data.Dataset.from_tensor_slices(features)
+        data_y = tf.data.Dataset.from_tensor_slices(labels)
+        data = tf.data.Dataset.zip((data_x, data_y)).batch(2)
+
+        # Figure out ordering of repeats and shuffles
+        data = data.repeat(self.repeat_size)
+        data = data.shuffle(self.shuffle)
+        data = data.batch(self.batch_size)
+        iterator = data.make_one_shot_iterator()
+        self.x_batch, self.y_batch = iterator.get_next()
 
 if __name__ == "__main__":
+    warnings.filterwarnings("ignore")
+    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
     path = "GTSRB/"
     gtsrb = ImageDataset(path)
-    n_train = len(gtsrb.train['features'])
-    n_valid = len(gtsrb.validation['features'])
-    n_test = len(gtsrb.test['features'])
-    width, height = len(gtsrb.test["features"][0]), len(gtsrb.test["features"][0][0])
+    n_train = len(gtsrb.x_train)
+    n_valid = len(gtsrb.x_valid)
+    n_test = len(gtsrb.x_test)
+    width, height = len(gtsrb.x_test[0]), len(gtsrb.x_test[0][0])
     image_shape = (width, height)
-    n_classes = len(set(gtsrb.test["labels"]))
+    n_classes = len(set(gtsrb.y_test))
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)
@@ -108,7 +133,7 @@ if __name__ == "__main__":
     print("Image data shape =", image_shape)
     print("Number of classes =", n_classes)
 
-    for image in gtsrb.train['features'][:5]:
-        print("shape: {0}, min: {1}, max: {2}".format(
-            image.shape, image.min(), image.max()))
+    # for image in gtsrb.train['features'][:5]:
+    #     print("shape: {0}, min: {1}, max: {2}".format(
+    #         image.shape, image.min(), image.max()))
     # print(type(gtsrb.train['features'][0]))
