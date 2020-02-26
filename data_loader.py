@@ -114,8 +114,10 @@ class ImageDataset():
         data = data.repeat(self.repeat_size)
         data = data.shuffle(self.shuffle)
         data = data.batch(self.batch_size)
-        iterator = data.make_one_shot_iterator()
+        iterator = tf.Data.Iterator.from_structure(data.output_types, data.output_shapes)
+        train_init = iterator.make_initializer(data)
         self.x_batch, self.y_batch = iterator.get_next()
+
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
