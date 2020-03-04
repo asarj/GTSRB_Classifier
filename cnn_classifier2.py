@@ -168,10 +168,6 @@ class CNN():
 
         return layer
 
-    def predict(self, x):
-        feed_dict = {self.x: x}
-        return self.sess.run(tf.argmax(self.prediction, axis=1), feed_dict=feed_dict)
-
 
 
 
