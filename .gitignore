@@ -134,3 +134,4 @@ GTSRB/
 *.idea/
 *.p
 *.pickle
+readTrafficSigns.py

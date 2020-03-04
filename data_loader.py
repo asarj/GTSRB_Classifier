@@ -19,21 +19,16 @@ class ImageDataset():
     x_valid = None
     y_valid = None
 
-    x_batch = None
-    y_batch = None
-
-    tf_sess = None
     shape = None
     num_classes = None
-    batch_size = 256
+    batch_size = 128
     repeat_size = 5
-    shuffle = 5
+    shuffle = 128
 
 
     def __init__(self, dir):
         """Constructor for building the TensorFlow dataset"""
-        print("TensorFlow Version: ", tf.__version__)
-        self.tf_sess = tf.Session()
+
         self.load(dir)
         self.preprocess(self.x_train)
         self.setup_batch_iterator(self.x_train, self.y_train)
@@ -43,17 +38,32 @@ class ImageDataset():
 
         self.train = pickle.load(open(directory + 'train.pickle', 'rb'))
         self.x_train, self.y_train = self.train['features'], self.train['labels']
+        self.x_train = self.x_train.astype(np.float32)
 
-        self.shape = self.x_train[0].shape
+        self.shape = list(self.x_train[0].shape)
         print("Shape: ", self.shape)
         self.num_classes = len(np.unique(self.y_train))
         print("Unique Classes: ", self.num_classes)
 
         self.test = pickle.load(open(directory + 'test.pickle', 'rb'))
         self.x_test, self.y_test = self.test['features'], self.test['labels']
+        self.x_test = self.x_test.astype(np.float32)
 
         self.validation = pickle.load(open(directory + 'valid.pickle', 'rb'))
         self.x_valid, self.y_valid = self.validation['features'], self.validation['labels']
+        self.x_valid = self.x_valid.astype(np.float32)
+
+    def setup_batch_iterator(self, features, labels):
+        """Function to construct a TensorFlow dataset and set up the batch iterator"""
+        print("Setting up batch iterator...")
+        # data_x = tf.data.Dataset.from_tensor_slices(features)
+        # data_y = tf.data.Dataset.from_tensor_slices(labels)
+
+        data = tf.data.Dataset.from_tensor_slices((features, labels))
+        data = data.shuffle(len(self.y_train), reshuffle_each_iteration=True).batch(self.batch_size)
+        iterator = tf.data.Iterator.from_structure(data.output_types, data.output_shapes)
+        self.train_init = iterator.make_initializer(data)
+        self.x_batch, self.y_batch = iterator.get_next()
 
     def display_one(self, a, title1 = "Original"):
         """Helper function for displaying an image"""
@@ -103,21 +113,6 @@ class ImageDataset():
         # return (image - image.mean()) / image.std()
         return np.divide(np.subtract(image, np.mean(image)), np.std(image))
 
-    def setup_batch_iterator(self, features:np.ndarray, labels:np.ndarray):
-        """Function to construct a TensorFlow dataset and set up the batch iterator"""
-        print("Setting up batch iterator...")
-        data_x = tf.data.Dataset.from_tensor_slices(features)
-        data_y = tf.data.Dataset.from_tensor_slices(labels)
-        data = tf.data.Dataset.zip((data_x, data_y)).batch(2)
-
-        # Figure out ordering of repeats and shuffles
-        data = data.repeat(self.repeat_size)
-        data = data.shuffle(self.shuffle)
-        data = data.batch(self.batch_size)
-        iterator = tf.Data.Iterator.from_structure(data.output_types, data.output_shapes)
-        train_init = iterator.make_initializer(data)
-        self.x_batch, self.y_batch = iterator.get_next()
-
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
@@ -143,3 +138,4 @@ if __name__ == "__main__":
     #     print("shape: {0}, min: {1}, max: {2}".format(
     #         image.shape, image.min(), image.max()))
     # print(type(gtsrb.train['features'][0]))
+
