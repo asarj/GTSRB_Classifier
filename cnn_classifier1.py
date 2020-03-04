@@ -38,16 +38,6 @@ class CNN():
         pool1 = self.pool(layer=c1, ksize=[1,2,2,1], strides=[1,2,2,1])
         print("Shape of After 1st pooling:", pool1.shape)
 
-        # # Second layer
-        # c2_channels = 6
-        # c2_filters = 16
-        # c2 = self.conv_layer(input=pool1, input_channels=c2_channels, filters=c2_filters, filter_size=5)
-        # print("Shape of After 2nd layer:", c2.shape)
-
-        # # Pooling
-        # pool2 = self.pool(layer=c2, ksize=[1,2,2,1], strides=[1,2,2,1])
-        # print("Shape of After 2nd pooling:", pool2.shape)
-
         # Flattened layer
         flattened = self.flatten_layer(layer=pool1)
         print("Shape of After flattening:", flattened.shape)
@@ -57,12 +47,6 @@ class CNN():
         fc1_output = 500
         fc1 = self.fc_layer(input=flattened, inputs=fc1_input, outputs=fc1_output, relu=True)
         print("Shape of After 1st FC:", fc1.shape)
-
-        # # Second Fully Connected Layer
-        # fc2_input = 120
-        # fc2_output = 84
-        # fc2 = self.fc_layer(input=fc1, inputs=fc2_input, outputs=fc2_output, relu=True)
-        # print("Shape of After 2nd FC:", fc2.shape)
 
         # Logits
         l_inp = 500
