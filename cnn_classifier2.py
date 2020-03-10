@@ -196,6 +196,7 @@ if __name__ == "__main__":
     # gtsrb.display_one(gtsrb.x_train[0])
 
     start = datetime.now()
-    cnn = CNN(gtsrb, num_epochs=20)
+    cnn = CNN(gtsrb, num_epochs=10)
     end = datetime.now()
     print("Time taken to train the model on " + str(epochs) + " epochs is:", str(end - start))
+    cnn.tf_sess.close()

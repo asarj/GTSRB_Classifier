@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import cv2
 import pickle
 from tqdm import tqdm
 import os
@@ -30,13 +31,18 @@ class ImageDataset():
         """Constructor for building the TensorFlow dataset"""
 
         self.load(dir)
+        print("Preprocessing train data...")
         self.preprocess(self.x_train)
+        print("Preprocessing test data...")
+        self.preprocess(self.x_test)
+        print("Preprocessing validation data...")
+        self.preprocess(self.x_valid)
         self.setup_batch_iterator(self.x_train, self.y_train)
 
     def load(self, directory:str)->None:
         """Populates the train, test, and validation global variables with raw data from the pickled files"""
 
-        self.train = pickle.load(open(directory + 'train.pickle', 'rb'))
+        self.train = pickle.load(open(directory + 'train.p', 'rb'))
         self.x_train, self.y_train = self.train['features'], self.train['labels']
         self.x_train = self.x_train.astype(np.float32)
 
@@ -45,11 +51,11 @@ class ImageDataset():
         self.num_classes = len(np.unique(self.y_train))
         print("Unique Classes: ", self.num_classes)
 
-        self.test = pickle.load(open(directory + 'test.pickle', 'rb'))
+        self.test = pickle.load(open(directory + 'test.p', 'rb'))
         self.x_test, self.y_test = self.test['features'], self.test['labels']
         self.x_test = self.x_test.astype(np.float32)
 
-        self.validation = pickle.load(open(directory + 'valid.pickle', 'rb'))
+        self.validation = pickle.load(open(directory + 'valid.p', 'rb'))
         self.x_valid, self.y_valid = self.validation['features'], self.validation['labels']
         self.x_valid = self.x_valid.astype(np.float32)
 
@@ -92,12 +98,47 @@ class ImageDataset():
     def preprocess(self, features:np.ndarray)->None:
         """Main function for preprocessing images"""
 
-        for img in tqdm(features):
+        for i, img in tqdm(enumerate(features)):
             # print("Before ", img[0][0])
             # self.display_one(img)
+            img = self.augment(img)
             img = self.normalize_image_pixels(img)
+            features[i] = img
             # print("After ", img[0][0])
             # self.display_one(img)
+
+    def augment(self, image:np.ndarray)->np.ndarray:
+        """Function for augmenting the images in the features dataset"""
+
+        # image = self.gaussian(image)
+        # image = self.translate(image)
+        image = self.perform_hist_eq(image)
+        return image
+
+    def perform_hist_eq(self, image:np.ndarray):
+        """Takes in an image and performs histogram equalization -> improves contrast"""
+
+        R, G, B = cv2.split(image.astype(np.uint8))
+
+        img_r = cv2.equalizeHist(R)
+        img_g = cv2.equalizeHist(G)
+        img_b = cv2.equalizeHist(B)
+
+        image = cv2.merge((img_r, img_g, img_b))
+
+        return image.astype(np.float32)
+
+    def translate(self, image, height=32, width=32, max_trans=5):
+        """Applies a random translation in height and/or width"""
+
+        translate_x = max_trans * np.random.uniform() - max_trans / 2
+        translate_y = max_trans * np.random.uniform() - max_trans / 2
+        translation_mat = np.float32([[1, 0, translate_x], [0, 1, translate_y]])
+        trans = cv2.warpAffine(image, translation_mat, (height, width))
+        return trans
+
+    def gaussian(self, image, ksize=(11,11), border=0):
+        return cv2.GaussianBlur(image, ksize, border)
 
     def normalize_image_pixels(self, image:np.ndarray)->np.ndarray:
         """Function to normalize the image pixels. Assumes that the np.ndarray passed in contains values
