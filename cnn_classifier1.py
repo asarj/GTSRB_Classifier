@@ -148,7 +148,7 @@ class CNN():
         t_acc = list()
 
         self.tf_sess.run(self.dataset.train_init)
-        for i in range(100):
+        for i in range(50):
             learning_rate *= 1.1
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(self.loss)
 
@@ -178,12 +178,6 @@ class CNN():
         plt.plot(rates, t_loss, 'b')
         plt.title("Loss vs. Learning Rate")
         plt.xlabel("Learning Rate")
-        plt.ylabel("Loss")
-        plt.show()
-
-        plt.plot(t_acc, t_loss, 'b')
-        plt.title("Training Loss vs. Training Accuracy")
-        plt.xlabel("Accuracy")
         plt.ylabel("Loss")
         plt.show()
 
