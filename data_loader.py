@@ -1,3 +1,4 @@
+from random import randint
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -67,6 +68,14 @@ class ImageDataset():
 
         data = tf.data.Dataset.from_tensor_slices((features, labels))
         data = data.shuffle(len(self.y_train), reshuffle_each_iteration=True).batch(self.batch_size)
+
+        # Preprocessing stage
+        # data = data.map(
+        #     lambda self, x:
+        #     tf.cond(
+        #         tf.random_uniform([], 0, 1) > 0.5,
+        #         lambda: random_image_augment(x),
+        #         lambda: x))
         iterator = tf.data.Iterator.from_structure(data.output_types, data.output_shapes)
         self.train_init = iterator.make_initializer(data)
         self.x_batch, self.y_batch = iterator.get_next()
@@ -101,21 +110,28 @@ class ImageDataset():
         for i, img in tqdm(enumerate(features)):
             # print("Before ", img[0][0])
             # self.display_one(img)
-            img = self.augment(img)
-            img = self.normalize_image_pixels(img)
+            # img = self.random_image_augment(img)
+            img = self.preprocess_improved(img)
+            # img = self.preprocess_improved(img)
             features[i] = img
             # print("After ", img[0][0])
             # self.display_one(img)
 
-    def augment(self, image:np.ndarray)->np.ndarray:
-        """Function for augmenting the images in the features dataset"""
+    def preprocess_improved(self, image:np.ndarray):
+        # Fix later
+        # choice = randint(0, 3)
+        # if choice == 0:
+        #     image = image
+        # elif choice == 1:
+        #     image = self.perform_hist_eq(image)
+        # elif choice == 2:
+        #     image = self.translate(image)
+        # elif choice == 3:
+        #     image = self.gaussian(image)
 
-        # image = self.gaussian(image)
-        # image = self.translate(image)
-        image = self.perform_hist_eq(image)
-        return image
+        return self.normalize_image_pixels(image)
 
-    def perform_hist_eq(self, image:np.ndarray):
+    def perform_hist_eq(self, image: np.ndarray):
         """Takes in an image and performs histogram equalization -> improves contrast"""
 
         R, G, B = cv2.split(image.astype(np.uint8))
@@ -127,6 +143,18 @@ class ImageDataset():
         image = cv2.merge((img_r, img_g, img_b))
 
         return image.astype(np.float32)
+
+    def translate(self, image, height=32, width=32, max_trans=5):
+        """Applies a random translation in height and/or width"""
+
+        translate_x = max_trans * np.random.uniform() - max_trans / 2
+        translate_y = max_trans * np.random.uniform() - max_trans / 2
+        translation_mat = np.float32([[1, 0, translate_x], [0, 1, translate_y]])
+        trans = cv2.warpAffine(image, translation_mat, (height, width))
+        return trans
+
+    def gaussian(self, image, ksize=(11, 11), border=0):
+        return cv2.GaussianBlur(image, ksize, border)
 
     def translate(self, image, height=32, width=32, max_trans=5):
         """Applies a random translation in height and/or width"""

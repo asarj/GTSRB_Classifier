@@ -1,9 +1,11 @@
 import numpy as np
+from random import randint
 import tensorflow as tf
 import os
 import warnings
 from data_loader import ImageDataset
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 class CNN():
 
@@ -14,12 +16,13 @@ class CNN():
     repeat_size = 5
     shuffle = 128
 
-    def __init__(self, dataset:ImageDataset, num_epochs=100):
+    def __init__(self, dataset:ImageDataset, num_epochs=100, learning_rate=1e5):
         self.tf_sess = tf.Session()
         self.dataset = dataset
         # self.setup_batch_iterator()
         self.build_model()
         self.train_model(num_epochs)
+        # self.plot_learning_rate(learning_rate=learning_rate)
 
     def build_model(self, learning_rate=0.001):
         print("Building model...")
@@ -71,15 +74,19 @@ class CNN():
         self.prediction = tf.argmax(logits, axis=1)
         # print("Prediction", self.prediction)
 
-    def train_model(self, epochs:int):
+    def train_model(self, epochs:int, limit=6):
         print("Training model...")
         self.tf_sess.run(tf.global_variables_initializer())
+
+        best, no_change, total_loss, total_acc = 0, 0, 0, 0
 
         for epoch in range(epochs):
             self.tf_sess.run(self.dataset.train_init)
             try:
+
                 total = 0
                 while 1:
+                    # self.dataset.x_batch, self.dataset.y_batch = self.preprocess_batch(self.dataset.x_batch, self.dataset.y_batch)
                     bx, by = self.tf_sess.run([self.dataset.x_batch, self.dataset.y_batch])
                     # print("Batch " + str(i + 1))
                     # print("X_batch:", bx.shape)
@@ -92,6 +99,8 @@ class CNN():
                     self.tf_sess.run(self.optimizer, feed_dict=feed_dict)
                     loss, acc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
                     total += acc * len(by)
+                    total_loss += loss * len(by)
+                    total_acc += acc * len(by)
                     # print(total / len(self.dataset.y_train))
             except(tf.errors.OutOfRangeError):
                 pass
@@ -102,8 +111,19 @@ class CNN():
                 self.y: self.dataset.y_valid
             }
 
-            loss, acc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-            print(f'epoch {epoch + 1}: loss = {loss:.4f}, training accuracy = {total / len(self.dataset.y_train):.4f}, validation accuracy = {acc:.4f}')
+            vloss, vacc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
+            print(f'epoch {epoch + 1}: loss = {vloss:.4f}, training accuracy = {total / len(self.dataset.y_train):.4f}, validation accuracy = {vacc:.4f}')
+
+            # Early stopping
+            if vacc > best:
+                best = vacc
+                # no_change = 0
+            else:
+                no_change += 1
+
+            if no_change >= limit:
+                print("Early stopping...")
+                break
 
         feed_dict = {
             self.x: self.dataset.x_test,
@@ -111,6 +131,46 @@ class CNN():
         }
         acc = self.tf_sess.run(self.accuracy, feed_dict=feed_dict)
         print(f'test accuracy = {acc:.4f}')
+        # return t_train_loss, t_train_acc, t_valid_loss, t_valid_acc
+
+    def plot_learning_rate(self, learning_rate=1e5):
+        self.tf_sess.run(tf.global_variables_initializer())
+        rates = list()
+        t_loss = list()
+        t_acc = list()
+
+        self.tf_sess.run(self.dataset.train_init)
+        for i in range(50):
+            learning_rate *= 1.1
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(self.loss)
+
+            bx, by = self.tf_sess.run([self.dataset.x_batch, self.dataset.y_batch])
+            feed_dict = {
+                self.x: bx,
+                self.y: by
+            }
+
+            self.tf_sess.run(optimizer, feed_dict=feed_dict)
+            loss, acc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
+            print("Loss", loss)
+            print("Acc", acc)
+            rates.append(learning_rate)
+            t_loss.append(loss)
+            t_acc.append(acc)
+
+            print(f'epoch {i + 1}: learning rate = {learning_rate}, loss = {loss}')
+
+        iters = np.arange(len(rates))
+        fig, (ax1, ax2) = plt.subplots(1,2)
+        ax1.set_title("Learning Rate vs. Iteration")
+        ax1.set(xlabel="Iteration", ylabel="Learning Rate")
+        ax1.plot(iters, rates, 'b')
+
+        ax2.set_title("Loss vs. Learning Rate")
+        ax2.set(xlabel="Learning Rate", ylabel="Loss")
+        ax2.plot(rates, t_loss, 'b')
+
+        plt.show()
 
     def create_weights(self, shape:list, stddev=0.05)->tf.Variable:
         return tf.Variable(tf.truncated_normal(shape=shape, mean=0, stddev=stddev))
@@ -168,7 +228,9 @@ if __name__ == "__main__":
     width, height = len(gtsrb.x_test[0]), len(gtsrb.x_test[0][0])
     image_shape = (width, height)
     n_classes = len(set(gtsrb.y_test))
-    epochs = 20
+
+    epochs = 10
+    learning_rate=1e8
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)
@@ -179,7 +241,7 @@ if __name__ == "__main__":
     # gtsrb.display_one(gtsrb.x_train[0])
 
     start = datetime.now()
-    cnn = CNN(gtsrb, num_epochs=10)
+    cnn = CNN(gtsrb, num_epochs=epochs, learning_rate=learning_rate)
     end = datetime.now()
     print("Time taken to build and train the model on " + str(epochs) + " epochs is:", str(end - start))
     cnn.tf_sess.close()
