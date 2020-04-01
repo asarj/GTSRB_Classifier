@@ -126,7 +126,7 @@ class CNN():
                 break
 
         feed_dict = {
-            self.x: self.dataset.x_test,
+            self.x: self.dataset.preprocess(self.dataset.x_test),
             self.y: self.dataset.y_test
         }
         acc = self.tf_sess.run(self.accuracy, feed_dict=feed_dict)
@@ -169,15 +169,22 @@ class CNN():
             print(f'epoch {i + 1}: learning rate = {learning_rate}, loss = {loss}')
 
         iters = np.arange(len(rates))
-        fig, (ax1, ax2) = plt.subplots(1,2)
-        ax1.set_title("Learning Rate vs. Iteration")
-        ax1.set(xlabel="Iteration", ylabel="Learning Rate")
-        ax1.plot(iters, rates, 'b')
+        plt.title("Learning Rate vs. Iteration")
+        plt.xlabel("Iteration")
+        plt.ylabel("Learning Rate")
+        plt.plot(iters, rates, 'b')
+        plt.show()
 
-        ax2.set_title("Loss vs. Learning Rate")
-        ax2.set(xlabel="Learning Rate", ylabel="Loss")
-        ax2.plot(rates, t_loss, 'b')
+        plt.plot(rates, t_loss, 'b')
+        plt.title("Loss vs. Learning Rate")
+        plt.xlabel("Learning Rate")
+        plt.ylabel("Loss")
+        plt.show()
 
+        plt.plot(t_acc, t_loss, 'b')
+        plt.title("Training Loss vs. Training Accuracy")
+        plt.xlabel("Accuracy")
+        plt.ylabel("Loss")
         plt.show()
 
     def create_weights(self, shape:list, stddev=0.05)->tf.Variable:
@@ -237,7 +244,7 @@ if __name__ == "__main__":
     image_shape = (width, height)
     n_classes = len(set(gtsrb.y_test))
 
-    epochs = 30
+    epochs = 10
     learning_rate=1e5
 
     print("Number of training examples =", n_train)
