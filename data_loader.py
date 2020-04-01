@@ -33,11 +33,11 @@ class ImageDataset():
 
         self.load(dir)
         print("Preprocessing train data...")
-        self.preprocess(self.x_train)
+        self.normalize_image_pixels(self.x_train)
         print("Preprocessing test data...")
-        self.preprocess(self.x_test)
+        self.normalize_image_pixels(self.x_test)
         print("Preprocessing validation data...")
-        self.preprocess(self.x_valid)
+        self.normalize_image_pixels(self.x_valid)
         self.setup_batch_iterator(self.x_train, self.y_train)
 
     def load(self, directory:str)->None:
@@ -107,7 +107,7 @@ class ImageDataset():
     def preprocess(self, features:np.ndarray)->None:
         """Main function for preprocessing images"""
 
-        for i, img in tqdm(enumerate(features)):
+        for i, img in (enumerate(features)):
             # print("Before ", img[0][0])
             # self.display_one(img)
             # img = self.random_image_augment(img)
@@ -116,18 +116,19 @@ class ImageDataset():
             features[i] = img
             # print("After ", img[0][0])
             # self.display_one(img)
+        return features
 
     def preprocess_improved(self, image:np.ndarray):
         # Fix later
-        # choice = randint(0, 3)
-        # if choice == 0:
-        #     image = image
-        # elif choice == 1:
-        #     image = self.perform_hist_eq(image)
-        # elif choice == 2:
-        #     image = self.translate(image)
-        # elif choice == 3:
-        #     image = self.gaussian(image)
+        choice = randint(0, 3)
+        if choice == 0:
+            image = image
+        elif choice == 1:
+            image = self.perform_hist_eq(image)
+        elif choice == 2:
+            image = self.translate(image)
+        elif choice == 3:
+            image = self.gaussian(image)
 
         return self.normalize_image_pixels(image)
 

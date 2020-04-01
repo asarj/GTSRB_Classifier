@@ -22,7 +22,7 @@ class CNN():
         # self.setup_batch_iterator()
         self.build_model()
         self.train_model(num_epochs)
-        # self.plot_learning_rate(learning_rate=learning_rate)
+        self.plot_learning_rate(learning_rate=learning_rate)
 
     def build_model(self, learning_rate=0.001):
         print("Building model...")
@@ -93,7 +93,7 @@ class CNN():
                     # print("Y_batch:", by.shape)
                     # print()
                     feed_dict = {
-                        self.x: bx,#.reshape((-1, 32, 32, 3)),
+                        self.x: self.dataset.preprocess(bx),#.reshape((-1, 32, 32, 3)),
                         self.y: by#.reshape((-1))
                     }
                     self.tf_sess.run(self.optimizer, feed_dict=feed_dict)
@@ -134,13 +134,21 @@ class CNN():
         # return t_train_loss, t_train_acc, t_valid_loss, t_valid_acc
 
     def plot_learning_rate(self, learning_rate=1e5):
+        if self.tf_sess._closed == False:
+            print("Restarting session for learning rate...")
+            self.tf_sess.close()
+            self.tf_sess = tf.Session()
+        else:
+            print("Creating new session for learning rate...")
+            self.tf_sess = tf.Session()
+
         self.tf_sess.run(tf.global_variables_initializer())
         rates = list()
         t_loss = list()
         t_acc = list()
 
         self.tf_sess.run(self.dataset.train_init)
-        for i in range(50):
+        for i in range(100):
             learning_rate *= 1.1
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(self.loss)
 
@@ -152,8 +160,8 @@ class CNN():
 
             self.tf_sess.run(optimizer, feed_dict=feed_dict)
             loss, acc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-            print("Loss", loss)
-            print("Acc", acc)
+            if np.isnan(loss):
+                loss = np.nan_to_num(loss)
             rates.append(learning_rate)
             t_loss.append(loss)
             t_acc.append(acc)
@@ -229,8 +237,8 @@ if __name__ == "__main__":
     image_shape = (width, height)
     n_classes = len(set(gtsrb.y_test))
 
-    epochs = 10
-    learning_rate=1e8
+    epochs = 30
+    learning_rate=1e5
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)
