@@ -1,9 +1,11 @@
 import numpy as np
+from random import randint
 import tensorflow as tf
 import os
 import warnings
 from data_loader import ImageDataset
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 class CNN():
 
@@ -13,20 +15,22 @@ class CNN():
     batch_size = 128
     repeat_size = 5
     shuffle = 128
+    learning_rate = 0.001
 
-    def __init__(self, dataset:ImageDataset, num_epochs=100):
+    def __init__(self, dataset:ImageDataset, num_epochs=100, learning_rate=0.001):
         self.tf_sess = tf.Session()
         self.dataset = dataset
         # self.setup_batch_iterator()
-        self.build_model()
-        self.train_model(num_epochs)
+        self.build_model(epochs=num_epochs, learning_rate=learning_rate)
+        self.train_model(epochs=num_epochs)
 
-    def build_model(self, learning_rate=0.001):
+    def build_model(self, epochs=50, learning_rate=0.001):
         print("Building model...")
         self.x = tf.placeholder(tf.float32, [None] + self.dataset.shape)
         self.y = tf.placeholder(tf.int32, [None])
 
         print("Shape of initial layer:", self.x.shape)
+
         # First layer
         c1_channels = 3
         c1_filters = 6
@@ -75,8 +79,7 @@ class CNN():
 
         self.loss = tf.reduce_mean(cross_entropy)
         # print("Loss: ", self.loss)
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self.loss)
-        # print("Optimizer:", self.optimizer)
+
 
         correct = tf.equal(tf.argmax(logits, axis=1), tf.argmax(y_to_one_hot, axis=1))
         # correct =
@@ -86,9 +89,17 @@ class CNN():
         self.prediction = tf.argmax(logits, axis=1)
         # print("Prediction", self.prediction)
 
-    def train_model(self, epochs:int):
+        # Get starting learning rate
+        self.learning_rate = self.get_optimal_learning_rate(epochs=epochs, learning_rate=learning_rate, plot_charts=False)
+
+        self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss)
+        # print("Optimizer:", self.optimizer)
+
+    def train_model(self, epochs:int, limit=6):
         print("Training model...")
         self.tf_sess.run(tf.global_variables_initializer())
+
+        best, no_change, total_loss, total_acc = 0, 0, 0, 0
 
         for epoch in range(epochs):
             self.tf_sess.run(self.dataset.train_init)
@@ -101,31 +112,107 @@ class CNN():
                     # print("Y_batch:", by.shape)
                     # print()
                     feed_dict = {
-                        self.x: bx,#.reshape((-1, 32, 32, 3)),
+                        self.x: self.dataset.preprocess(bx),#.reshape((-1, 32, 32, 3)),
                         self.y: by#.reshape((-1))
                     }
                     self.tf_sess.run(self.optimizer, feed_dict=feed_dict)
                     loss, acc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
                     total += acc * len(by)
+                    total_loss += loss * len(by)
+                    total_acc += acc * len(by)
                     # print(total / len(self.dataset.y_train))
             except(tf.errors.OutOfRangeError):
                 pass
 
 
             feed_dict = {
-                self.x: self.dataset.x_valid,
+                self.x: self.dataset.preprocess_normalize_only(self.dataset.x_valid),
                 self.y: self.dataset.y_valid
             }
 
-            loss, acc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-            print(f'epoch {epoch + 1}: loss = {loss:.4f}, training accuracy = {total / len(self.dataset.y_train):.4f}, validation accuracy = {acc:.4f}')
+            vloss, vacc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
+            print(f'epoch {epoch + 1}: loss = {vloss:.4f}, '
+                  f'training accuracy = {total / len(self.dataset.y_train):.4f}, '
+                  f'validation accuracy = {vacc:.4f}, '
+                  f'learning rate = {self.learning_rate:.10f}')
+
+            # Early stopping
+            if vacc > best:
+                best = vacc
+                # no_change = 0
+            else:
+                no_change += 1
+
+            if no_change >= limit:
+                print("Early stopping...")
+                break
 
         feed_dict = {
-            self.x: self.dataset.x_test,
+            self.x: self.dataset.preprocess_normalize_only(self.dataset.x_test),
             self.y: self.dataset.y_test
         }
         acc = self.tf_sess.run(self.accuracy, feed_dict=feed_dict)
         print(f'test accuracy = {acc:.4f}')
+
+    def get_optimal_learning_rate(self, epochs=50, learning_rate=1e-5, plot_charts=False):
+        # if self.tf_sess is not None and self.tf_sess._closed == False:
+        #     print("Restarting session for learning rate...")
+        #     self.tf_sess.close()
+        #     self.tf_sess = tf.Session()
+        # else:
+        #     print("Creating new session for learning rate...")
+        #     self.tf_sess = tf.Session()
+
+        self.tf_sess.run(tf.global_variables_initializer())
+        rates = list()
+        t_loss = list()
+        t_acc = list()
+
+        self.tf_sess.run(self.dataset.train_init)
+        for i in range(epochs):
+            # Store learning rate in a tf variable and update it
+            # g_step = tf.Variable(0, trainable=False)
+            # lr = tf.train.exponential_decay(learning_rate, g_step, 100000, 0.96, staircase=True)
+
+            learning_rate *= 1.1
+            optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(self.loss)
+
+            bx, by = self.tf_sess.run([self.dataset.x_batch, self.dataset.y_batch])
+            feed_dict = {
+                self.x: bx,
+                self.y: by
+            }
+
+            self.tf_sess.run(optimizer, feed_dict=feed_dict)
+            loss, acc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
+            if np.isnan(loss):
+                loss = np.nan_to_num(loss)
+            rates.append(learning_rate)
+            t_loss.append(loss)
+            t_acc.append(acc)
+
+            print(f'epoch {i + 1}: learning rate = {learning_rate:.10f}, loss = {loss:.10f}')
+        if plot_charts:
+            iters = np.arange(len(rates))
+            plt.title("Learning Rate (log) vs. Iteration")
+            plt.xlabel("Iteration")
+            plt.ylabel("Learning Rate")
+            plt.plot(iters, rates, 'b')
+            plt.show()
+
+            plt.plot(rates, t_loss, 'b')
+            plt.title("Loss vs. Learning Rate (log)")
+            plt.xlabel("Learning Rate")
+            plt.ylabel("Loss")
+            plt.show()
+
+        # Calculate the learning rate based on the biggest derivative betweeen the loss and learning rate
+        dydx = list(np.divide(np.diff(t_loss), np.diff(rates)))
+        start = rates[dydx.index(max(dydx))]
+        print("Chosen start learning rate:", start)
+        print()
+        # self.tf_sess.close()
+        return start
 
     def create_weights(self, shape:list, stddev=0.05)->tf.Variable:
         return tf.Variable(tf.truncated_normal(shape=shape, mean=0, stddev=stddev))
@@ -169,8 +256,6 @@ class CNN():
         return layer
 
 
-
-
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -185,7 +270,9 @@ if __name__ == "__main__":
     width, height = len(gtsrb.x_test[0]), len(gtsrb.x_test[0][0])
     image_shape = (width, height)
     n_classes = len(set(gtsrb.y_test))
-    epochs = 20
+
+    epochs = 50
+    learning_rate = 1e-3
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)
@@ -196,7 +283,7 @@ if __name__ == "__main__":
     # gtsrb.display_one(gtsrb.x_train[0])
 
     start = datetime.now()
-    cnn = CNN(gtsrb, num_epochs=10)
+    cnn = CNN(gtsrb, num_epochs=epochs, learning_rate=learning_rate)
     end = datetime.now()
-    print("Time taken to train the model on " + str(epochs) + " epochs is:", str(end - start))
+    print("Time taken to build and train the model on " + str(epochs) + " epochs is:", str(end - start))
     cnn.tf_sess.close()

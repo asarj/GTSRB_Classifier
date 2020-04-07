@@ -15,16 +15,16 @@ class CNN():
     batch_size = 128
     repeat_size = 5
     shuffle = 128
+    learning_rate = 0.001
 
-    def __init__(self, dataset:ImageDataset, num_epochs=100, learning_rate=1e5):
+    def __init__(self, dataset:ImageDataset, num_epochs=100, learning_rate=0.001):
         self.tf_sess = tf.Session()
         self.dataset = dataset
         # self.setup_batch_iterator()
-        self.build_model()
-        self.train_model(num_epochs)
-        self.plot_learning_rate(learning_rate=learning_rate)
+        self.build_model(epochs=num_epochs, learning_rate=learning_rate)
+        self.train_model(epochs=num_epochs)
 
-    def build_model(self, learning_rate=0.001):
+    def build_model(self, epochs=50, learning_rate=0.001):
         print("Building model...")
         self.x = tf.placeholder(tf.float32, [None] + self.dataset.shape)
         self.y = tf.placeholder(tf.int32, [None])
@@ -63,8 +63,7 @@ class CNN():
 
         self.loss = tf.reduce_mean(cross_entropy)
         # print("Loss: ", self.loss)
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self.loss)
-        # print("Optimizer:", self.optimizer)
+
 
         correct = tf.equal(tf.argmax(logits, axis=1), tf.argmax(y_to_one_hot, axis=1))
         # correct =
@@ -73,6 +72,12 @@ class CNN():
         # print("Accuracy", self.accuracy)
         self.prediction = tf.argmax(logits, axis=1)
         # print("Prediction", self.prediction)
+
+        # Get starting learning rate
+        self.learning_rate = self.get_optimal_learning_rate(epochs=epochs, learning_rate=learning_rate, plot_charts=False)
+
+        self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss)
+        # print("Optimizer:", self.optimizer)
 
     def train_model(self, epochs:int, limit=6):
         print("Training model...")
@@ -83,10 +88,8 @@ class CNN():
         for epoch in range(epochs):
             self.tf_sess.run(self.dataset.train_init)
             try:
-
                 total = 0
                 while 1:
-                    # self.dataset.x_batch, self.dataset.y_batch = self.preprocess_batch(self.dataset.x_batch, self.dataset.y_batch)
                     bx, by = self.tf_sess.run([self.dataset.x_batch, self.dataset.y_batch])
                     # print("Batch " + str(i + 1))
                     # print("X_batch:", bx.shape)
@@ -107,12 +110,15 @@ class CNN():
 
 
             feed_dict = {
-                self.x: self.dataset.x_valid,
+                self.x: self.dataset.preprocess_normalize_only(self.dataset.x_valid),
                 self.y: self.dataset.y_valid
             }
 
             vloss, vacc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
-            print(f'epoch {epoch + 1}: loss = {vloss:.4f}, training accuracy = {total / len(self.dataset.y_train):.4f}, validation accuracy = {vacc:.4f}')
+            print(f'epoch {epoch + 1}: loss = {vloss:.4f}, '
+                  f'training accuracy = {total / len(self.dataset.y_train):.4f}, '
+                  f'validation accuracy = {vacc:.4f}, '
+                  f'learning rate = {self.learning_rate:.10f}')
 
             # Early stopping
             if vacc > best:
@@ -126,21 +132,20 @@ class CNN():
                 break
 
         feed_dict = {
-            self.x: self.dataset.preprocess(self.dataset.x_test),
+            self.x: self.dataset.preprocess_normalize_only(self.dataset.x_test),
             self.y: self.dataset.y_test
         }
         acc = self.tf_sess.run(self.accuracy, feed_dict=feed_dict)
         print(f'test accuracy = {acc:.4f}')
-        # return t_train_loss, t_train_acc, t_valid_loss, t_valid_acc
 
-    def plot_learning_rate(self, learning_rate=1e5):
-        if self.tf_sess._closed == False:
-            print("Restarting session for learning rate...")
-            self.tf_sess.close()
-            self.tf_sess = tf.Session()
-        else:
-            print("Creating new session for learning rate...")
-            self.tf_sess = tf.Session()
+    def get_optimal_learning_rate(self, epochs=50, learning_rate=1e-5, plot_charts=False):
+        # if self.tf_sess is not None and self.tf_sess._closed == False:
+        #     print("Restarting session for learning rate...")
+        #     self.tf_sess.close()
+        #     self.tf_sess = tf.Session()
+        # else:
+        #     print("Creating new session for learning rate...")
+        #     self.tf_sess = tf.Session()
 
         self.tf_sess.run(tf.global_variables_initializer())
         rates = list()
@@ -148,7 +153,11 @@ class CNN():
         t_acc = list()
 
         self.tf_sess.run(self.dataset.train_init)
-        for i in range(50):
+        for i in range(epochs):
+            # Store learning rate in a tf variable and update it
+            # g_step = tf.Variable(0, trainable=False)
+            # lr = tf.train.exponential_decay(learning_rate, g_step, 100000, 0.96, staircase=True)
+
             learning_rate *= 1.1
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(self.loss)
 
@@ -166,20 +175,28 @@ class CNN():
             t_loss.append(loss)
             t_acc.append(acc)
 
-            print(f'epoch {i + 1}: learning rate = {learning_rate}, loss = {loss}')
+            print(f'epoch {i + 1}: learning rate = {learning_rate:.10f}, loss = {loss:.10f}')
+        if plot_charts:
+            iters = np.arange(len(rates))
+            plt.title("Learning Rate (log) vs. Iteration")
+            plt.xlabel("Iteration")
+            plt.ylabel("Learning Rate")
+            plt.plot(iters, rates, 'b')
+            plt.show()
 
-        iters = np.arange(len(rates))
-        plt.title("Learning Rate vs. Iteration")
-        plt.xlabel("Iteration")
-        plt.ylabel("Learning Rate")
-        plt.plot(iters, rates, 'b')
-        plt.show()
+            plt.plot(rates, t_loss, 'b')
+            plt.title("Loss vs. Learning Rate (log)")
+            plt.xlabel("Learning Rate")
+            plt.ylabel("Loss")
+            plt.show()
 
-        plt.plot(rates, t_loss, 'b')
-        plt.title("Loss vs. Learning Rate")
-        plt.xlabel("Learning Rate")
-        plt.ylabel("Loss")
-        plt.show()
+        # Calculate the learning rate based on the biggest derivative betweeen the loss and learning rate
+        dydx = list(np.divide(np.diff(t_loss), np.diff(rates)))
+        start = rates[dydx.index(max(dydx))]
+        print("Chosen start learning rate:", start)
+        print()
+        # self.tf_sess.close()
+        return start
 
     def create_weights(self, shape:list, stddev=0.05)->tf.Variable:
         return tf.Variable(tf.truncated_normal(shape=shape, mean=0, stddev=stddev))
@@ -238,8 +255,8 @@ if __name__ == "__main__":
     image_shape = (width, height)
     n_classes = len(set(gtsrb.y_test))
 
-    epochs = 10
-    learning_rate=1e5
+    epochs = 50
+    learning_rate = 1e-3
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)

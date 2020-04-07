@@ -132,6 +132,18 @@ class ImageDataset():
 
         return self.normalize_image_pixels(image)
 
+    def preprocess_normalize_only(self, features:np.ndarray):
+        for i, img in (enumerate(features)):
+            # print("Before ", img[0][0])
+            # self.display_one(img)
+            # img = self.random_image_augment(img)
+            img = self.normalize_image_pixels(img)
+            # img = self.preprocess_improved(img)
+            features[i] = img
+            # print("After ", img[0][0])
+            # self.display_one(img)
+        return features
+
     def perform_hist_eq(self, image: np.ndarray):
         """Takes in an image and performs histogram equalization -> improves contrast"""
 
