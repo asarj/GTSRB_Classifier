@@ -17,12 +17,12 @@ class CNN():
     shuffle = 128
     learning_rate = 0.001
 
-    def __init__(self, dataset:ImageDataset, num_epochs=100, learning_rate=0.001):
-        self.tf_sess = tf.Session()
+    def __init__(self, dataset:ImageDataset, num_epochs=100, learning_rate=0.001, enable_session=False):
+        if enable_session:
+            self.tf_sess = tf.Session()
         self.dataset = dataset
         # self.setup_batch_iterator()
         self.build_model(epochs=num_epochs, learning_rate=learning_rate)
-        self.train_model(epochs=num_epochs)
 
     def build_model(self, epochs=50, learning_rate=0.001):
         print("Building model...")
@@ -275,6 +275,7 @@ if __name__ == "__main__":
 
     epochs = 50
     learning_rate = 1e-3
+    enable_session = True
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)
@@ -285,7 +286,13 @@ if __name__ == "__main__":
     # gtsrb.display_one(gtsrb.x_train[0])
 
     start = datetime.now()
-    cnn = CNN(gtsrb, num_epochs=epochs, learning_rate=learning_rate)
-    end = datetime.now()
-    print("Time taken to build and train the model on " + str(epochs) + " epochs is:", str(end - start))
-    cnn.tf_sess.close()
+    cnn = CNN(gtsrb, num_epochs=epochs, learning_rate=learning_rate, enable_session=enable_session)
+    cnn.train_model(epochs=epochs, limit=8)
+    if enable_session:
+        cnn.train_model(epochs=epochs, limit=8)
+        end = datetime.now()
+        print("Time taken to build and train the model on " + str(epochs) + " epochs is:", str(end - start))
+        cnn.tf_sess.close()
+    else:
+        end = datetime.now()
+        print("Time taken to build the model on " + str(epochs) + " epochs is:", str(end - start))
