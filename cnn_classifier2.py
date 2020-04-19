@@ -72,6 +72,7 @@ class CNN():
         l_out = 43
         logits = self.fc_layer(input=fc2, inputs=l_inp, outputs=l_out, relu=False)
         print("Shape after logits:", logits.shape)
+        print()
 
         # Convert train data labels to one hot encoding to feed into softmax function
         y_to_one_hot = tf.one_hot(self.y, self.dataset.num_classes)
@@ -139,7 +140,7 @@ class CNN():
             # Early stopping
             if vacc > best:
                 best = vacc
-                # no_change = 0
+                no_change = 0
             else:
                 no_change += 1
 
@@ -163,6 +164,7 @@ class CNN():
         #     print("Creating new session for learning rate...")
         #     self.tf_sess = tf.Session()
 
+        print("Finding optimal learning rate...")
         self.tf_sess.run(tf.global_variables_initializer())
         rates = list()
         t_loss = list()
@@ -279,7 +281,7 @@ if __name__ == "__main__":
     print("Number of validation examples =", n_valid)
     print("Image data shape =", image_shape)
     print("Number of classes =", n_classes)
-
+    print()
     # gtsrb.display_one(gtsrb.x_train[0])
 
     start = datetime.now()

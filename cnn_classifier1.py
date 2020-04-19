@@ -22,7 +22,6 @@ class CNN():
         self.dataset = dataset
         # self.setup_batch_iterator()
         self.build_model(epochs=num_epochs, learning_rate=learning_rate)
-        self.train_model(epochs=num_epochs)
 
     def build_model(self, epochs=50, learning_rate=0.001):
         print("Building model...")
@@ -56,7 +55,7 @@ class CNN():
         l_out = 43
         logits = self.fc_layer(input=fc1, inputs=l_inp, outputs=l_out, relu=False)
         print("Shape after logits:", logits.shape)
-
+        print()
         # Convert train data labels to one hot encoding to feed into softmax function
         y_to_one_hot = tf.one_hot(self.y, self.dataset.num_classes)
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=y_to_one_hot)
@@ -123,7 +122,7 @@ class CNN():
             # Early stopping
             if vacc > best:
                 best = vacc
-                # no_change = 0
+                no_change = 0
             else:
                 no_change += 1
 
@@ -146,7 +145,7 @@ class CNN():
         # else:
         #     print("Creating new session for learning rate...")
         #     self.tf_sess = tf.Session()
-
+        print("Finding optimal learning rate...")
         self.tf_sess.run(tf.global_variables_initializer())
         rates = list()
         t_loss = list()
@@ -263,11 +262,13 @@ if __name__ == "__main__":
     print("Number of validation examples =", n_valid)
     print("Image data shape =", image_shape)
     print("Number of classes =", n_classes)
+    print()
 
     # gtsrb.display_one(gtsrb.x_train[0])
 
     start = datetime.now()
     cnn = CNN(gtsrb, num_epochs=epochs, learning_rate=learning_rate)
+    cnn.train_model(epochs=epochs)
     end = datetime.now()
     print("Time taken to build and train the model on " + str(epochs) + " epochs is:", str(end - start))
     cnn.tf_sess.close()
