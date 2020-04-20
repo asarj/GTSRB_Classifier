@@ -1,11 +1,11 @@
 import numpy as np
-from random import randint
 import tensorflow as tf
 import os
 import warnings
 from data_loader import ImageDataset
 from datetime import datetime
 import matplotlib.pyplot as plt
+
 
 class CNN():
 
@@ -17,16 +17,29 @@ class CNN():
     shuffle = 128
     learning_rate = 0.001
 
-    def __init__(self, dataset:ImageDataset, num_epochs=100, learning_rate=0.001, enable_session=False):
+    def __init__(self, dataset:ImageDataset, load_dataset=True, num_epochs=100, learning_rate=0.001,
+                 enable_session=False, dynamic_lr=True, shape=None, num_classes=None):
+
         if enable_session:
             self.tf_sess = tf.Session()
-        self.dataset = dataset
-        # self.setup_batch_iterator()
-        self.build_model(epochs=num_epochs, learning_rate=learning_rate)
 
-    def build_model(self, epochs=50, learning_rate=0.001):
+        if load_dataset:
+            self.dataset = dataset
+        # self.setup_batch_iterator()
+        self.build_model(epochs=num_epochs,
+                         learning_rate=learning_rate,
+                         enable_dynamic_lr=dynamic_lr,
+                         dataset_loaded=load_dataset,
+                         shape=shape,
+                         num_classes=num_classes)
+
+    def build_model(self, epochs=50, learning_rate=0.001, enable_dynamic_lr=True, dataset_loaded=True, shape=None, num_classes=None):
         print("Building model...")
-        self.x = tf.placeholder(tf.float32, [None] + self.dataset.shape)
+        if dataset_loaded:
+            self.x = tf.placeholder(tf.float32, [None] + self.dataset.shape)
+        else:
+            self.x = tf.placeholder(tf.float32, [None] + shape)
+
         self.y = tf.placeholder(tf.int32, [None])
 
         print("Shape of initial layer:", self.x.shape)
@@ -57,8 +70,13 @@ class CNN():
         logits = self.fc_layer(input=fc1, inputs=l_inp, outputs=l_out, relu=False)
         print("Shape after logits:", logits.shape)
         print()
+
         # Convert train data labels to one hot encoding to feed into softmax function
-        y_to_one_hot = tf.one_hot(self.y, self.dataset.num_classes)
+        if dataset_loaded:
+            y_to_one_hot = tf.one_hot(self.y, self.dataset.num_classes)
+        else:
+            y_to_one_hot = tf.one_hot(self.y, num_classes)
+
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=y_to_one_hot)
 
         self.loss = tf.reduce_mean(cross_entropy)
@@ -74,7 +92,10 @@ class CNN():
         # print("Prediction", self.prediction)
 
         # Get starting learning rate
-        self.learning_rate = self.get_optimal_learning_rate(epochs=epochs, learning_rate=learning_rate, plot_charts=False)
+        if enable_dynamic_lr:
+            self.learning_rate = self.get_optimal_learning_rate(epochs=epochs, learning_rate=learning_rate, plot_charts=False)
+        else:
+            self.learning_rate = learning_rate
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss)
         # print("Optimizer:", self.optimizer)
@@ -146,6 +167,7 @@ class CNN():
         # else:
         #     print("Creating new session for learning rate...")
         #     self.tf_sess = tf.Session()
+
         print("Finding optimal learning rate...")
         self.tf_sess.run(tf.global_variables_initializer())
         rates = list()
@@ -258,6 +280,9 @@ if __name__ == "__main__":
     epochs = 50
     learning_rate = 1e-3
     enable_session = True
+    dynamic_lr = True
+    shape = (32,32,3)
+    num_classes = 43
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)
@@ -269,7 +294,13 @@ if __name__ == "__main__":
     # gtsrb.display_one(gtsrb.x_train[0])
 
     start = datetime.now()
-    cnn = CNN(gtsrb, num_epochs=epochs, learning_rate=learning_rate, enable_session=enable_session)
+    cnn = CNN(dataset=gtsrb,
+              num_epochs=epochs,
+              learning_rate=learning_rate,
+              enable_session=enable_session,
+              dynamic_lr=dynamic_lr,
+              shape=shape,
+              num_classes=num_classes)
     if enable_session:
         cnn.train_model(epochs=epochs, limit=8)
         end = datetime.now()

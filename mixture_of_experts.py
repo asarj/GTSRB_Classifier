@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 from cnn_classifier1 import CNN as BaseClassifier
 from cnn_classifier2 import CNN as LeNet
 
-class MoE():
+
+class MixtureOfExperts():
     pass
 
 if __name__ == "__main__":
@@ -29,6 +30,8 @@ if __name__ == "__main__":
 
     epochs = 50
     learning_rate = 1e-3
+    enable_session = True
+    num_experts = 4
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)
@@ -40,9 +43,6 @@ if __name__ == "__main__":
     # gtsrb.display_one(gtsrb.x_train[0])
 
     start = datetime.now()
-    base = BaseClassifier(gtsrb, num_epochs=epochs, learning_rate=learning_rate)
-    lenet = LeNet(gtsrb, num_epochs=epochs, learning_rate=learning_rate)
+
     end = datetime.now()
     print("Time taken to build and train each model on " + str(epochs) + " epochs is:", str(end - start))
-    base.tf_sess.close()
-    lenet.tf_sess.close()

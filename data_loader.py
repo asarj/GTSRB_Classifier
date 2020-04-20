@@ -29,7 +29,14 @@ class ImageDataset():
 
 
     def __init__(self, dir):
-        """Constructor for building the TensorFlow dataset"""
+        """
+        Constructor for building the TensorFlow dataset
+
+        Loads the train, test, and validation pickle files from the specified directory and applies
+        normalization on the dataset, followed by a setup of the tensorflow batch iterator
+
+        :param str dir: the path to the dataset containing pickle files
+        """
 
         self.load(dir)
         print("Preprocessing train data...")
@@ -40,8 +47,13 @@ class ImageDataset():
         self.normalize_image_pixels(self.x_valid)
         self.setup_batch_iterator(self.x_train, self.y_train)
 
-    def load(self, directory:str)->None:
-        """Populates the train, test, and validation global variables with raw data from the pickled files"""
+    def load(self, directory:str) -> None:
+        """
+        Populates the train, test, and validation global variables with raw data from the pickled files
+
+        :param directory: the path to the dataset containing pickle files
+        :return: None, the class variables are populated accordingly
+        """
 
         self.train = pickle.load(open(directory + 'train.p', 'rb'))
         self.x_train, self.y_train = self.train['features'], self.train['labels']
@@ -61,7 +73,13 @@ class ImageDataset():
         self.x_valid = self.x_valid.astype(np.float32)
 
     def setup_batch_iterator(self, features, labels):
-        """Function to construct a TensorFlow dataset and set up the batch iterator"""
+        """
+        Constructs a TensorFlow dataset from the and sets up the batch iterator
+
+        :param features:
+        :param labels:
+        :return:
+        """
         print("Setting up batch iterator...")
         # data_x = tf.data.Dataset.from_tensor_slices(features)
         # data_y = tf.data.Dataset.from_tensor_slices(labels)
