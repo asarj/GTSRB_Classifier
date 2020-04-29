@@ -17,7 +17,7 @@ class CNN():
     shuffle = 128
     learning_rate = 0.001
 
-    def __init__(self, dataset: ImageDataset, load_dataset=True, num_epochs=100, learning_rate=0.001,
+    def __init__(self, dataset:ImageDataset, load_dataset=True, num_epochs=100, learning_rate=0.001,
                  enable_session=False, dynamic_lr=True, shape=None, num_classes=None):
 
         if enable_session:
@@ -37,7 +37,7 @@ class CNN():
                     enable_dynamic_lr=True, dataset_loaded=True, shape=None, num_classes=None):
         print("Building model...")
         if dataset_loaded:
-            self.x = tf.placeholder(tf.float32, [None] + self.dataset.shape)
+            self.x = tf.placeholder(tf.float32, [None] + list(self.dataset.shape))
         else:
             self.x = tf.placeholder(tf.float32, [None] + shape)
 
@@ -55,36 +55,20 @@ class CNN():
         pool1 = self.pool(layer=c1, ksize=[1,2,2,1], strides=[1,2,2,1])
         print("Shape of After 1st pooling:", pool1.shape)
 
-        # Second layer
-        c2_channels = 6
-        c2_filters = 16
-        c2 = self.conv_layer(input=pool1, input_channels=c2_channels, filters=c2_filters, filter_size=5)
-        print("Shape of After 2nd layer:", c2.shape)
-
-        # Pooling
-        pool2 = self.pool(layer=c2, ksize=[1,2,2,1], strides=[1,2,2,1])
-        print("Shape of After 2nd pooling:", pool2.shape)
-
         # Flattened layer
-        flattened = self.flatten_layer(layer=pool2)
+        flattened = self.flatten_layer(layer=pool1)
         print("Shape of After flattening:", flattened.shape)
 
         # First Fully Connected Layer
-        fc1_input = 400
-        fc1_output = 120
+        fc1_input = 1176
+        fc1_output = 500
         fc1 = self.fc_layer(input=flattened, inputs=fc1_input, outputs=fc1_output, relu=True)
         print("Shape of After 1st FC:", fc1.shape)
 
-        # Second Fully Connected Layer
-        fc2_input = 120
-        fc2_output = 84
-        fc2 = self.fc_layer(input=fc1, inputs=fc2_input, outputs=fc2_output, relu=True)
-        print("Shape of After 2nd FC:", fc2.shape)
-
         # Logits
-        l_inp = 84
+        l_inp = 500
         l_out = 43
-        self.logits = self.fc_layer(input=fc2, inputs=l_inp, outputs=l_out, relu=False)
+        self.logits = self.fc_layer(input=fc1, inputs=l_inp, outputs=l_out, relu=False)
         print("Shape after logits:", self.logits.shape)
         print()
 
@@ -97,6 +81,7 @@ class CNN():
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=y_to_one_hot)
 
         self.loss = tf.reduce_mean(cross_entropy)
+
 
         correct = tf.equal(tf.argmax(self.logits, axis=1), tf.argmax(y_to_one_hot, axis=1))
         self.accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
@@ -216,7 +201,7 @@ class CNN():
         start = rates[dydx.index(max(dydx))]
         print("Chosen start learning rate:", start)
         print()
-
+        # self.tf_sess.close()
         return start
 
     def create_weights(self, shape:list, stddev=0.05)->tf.Variable:
@@ -298,6 +283,8 @@ if __name__ == "__main__":
     print("Image data shape =", image_shape)
     print("Number of classes =", n_classes)
     print()
+
+    # gtsrb.display_one(gtsrb.x_train[0])
 
     start = datetime.now()
     cnn = CNN(dataset=gtsrb,
