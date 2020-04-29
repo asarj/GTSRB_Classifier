@@ -1,6 +1,7 @@
 from random import randint
 import numpy as np
 import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
 import matplotlib.pyplot as plt
 import cv2
 import pickle
@@ -28,7 +29,7 @@ class ImageDataset():
     shuffle = 128
 
 
-    def __init__(self, dir):
+    def __init__(self, dir=None, type=None):
         """
         Constructor for building the TensorFlow dataset
 
@@ -36,9 +37,30 @@ class ImageDataset():
         normalization on the dataset, followed by a setup of the tensorflow batch iterator
 
         :param str dir: the path to the dataset containing pickle files
+        :param str type: the default tensorflow dataset to load in (only supports MNIST)
         """
+        if type is not None:
+            if type == 'MNIST':
+                mnist = input_data.read_data_sets('data/MNIST/', one_hot=True)
+                self.x_train = mnist.train.images
+                self.y_train = mnist.train.labels
+                self.x_train = self.x_train.astype(np.float32)
+                self.shape = list(self.x_train.shape)
+                print("Shape: ", self.shape)
+                self.num_classes = self.y_train.shape[1]
+                print("Unique Classes: ", self.num_classes)
 
-        self.load(dir)
+                self.x_valid = mnist.validation.images
+                self.y_valid = mnist.validation.labels
+                self.x_valid = self.x_valid.astype(np.float32)
+
+                self.x_test = mnist.test.images
+                self.y_test = mnist.test.labels
+                self.x_test = self.x_test.astype(np.float32)
+
+        elif dir is not None:
+            self.load(dir)
+
         print("Preprocessing train data...")
         self.normalize_image_pixels(self.x_train)
         print("Preprocessing test data...")
@@ -59,7 +81,7 @@ class ImageDataset():
         self.x_train, self.y_train = self.train['features'], self.train['labels']
         self.x_train = self.x_train.astype(np.float32)
 
-        self.shape = list(self.x_train[0].shape)
+        self.shape = self.x_train[0].shape
         print("Shape: ", self.shape)
         self.num_classes = len(np.unique(self.y_train))
         print("Unique Classes: ", self.num_classes)
@@ -87,13 +109,6 @@ class ImageDataset():
         data = tf.data.Dataset.from_tensor_slices((features, labels))
         data = data.shuffle(len(self.y_train), reshuffle_each_iteration=True).batch(self.batch_size)
 
-        # Preprocessing stage
-        # data = data.map(
-        #     lambda self, x:
-        #     tf.cond(
-        #         tf.random_uniform([], 0, 1) > 0.5,
-        #         lambda: random_image_augment(x),
-        #         lambda: x))
         iterator = tf.data.Iterator.from_structure(data.output_types, data.output_shapes)
         self.train_init = iterator.make_initializer(data)
         self.x_batch, self.y_batch = iterator.get_next()
@@ -122,22 +137,16 @@ class ImageDataset():
         plt.yticks([])
         plt.show()
 
-    def preprocess(self, features:np.ndarray)->None:
+    def preprocess(self, features:np.ndarray)->np.ndarray:
         """Main function for preprocessing images"""
 
         for i, img in (enumerate(features)):
-            # print("Before ", img[0][0])
-            # self.display_one(img)
-            # img = self.random_image_augment(img)
             img = self.preprocess_improved(img)
-            # img = self.preprocess_improved(img)
             features[i] = img
-            # print("After ", img[0][0])
-            # self.display_one(img)
         return features
 
     def preprocess_improved(self, image:np.ndarray):
-        # Fix later
+
         choice = randint(0, 3)
         if choice == 0:
             image = image
@@ -219,14 +228,14 @@ if __name__ == "__main__":
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+    print("Testing GTSRB...")
     path = "GTSRB/"
     gtsrb = ImageDataset(path)
     n_train = len(gtsrb.x_train)
     n_valid = len(gtsrb.x_valid)
     n_test = len(gtsrb.x_test)
-    width, height = len(gtsrb.x_test[0]), len(gtsrb.x_test[0][0])
-    image_shape = (width, height)
-    n_classes = len(set(gtsrb.y_test))
+    image_shape = gtsrb.shape
+    n_classes = gtsrb.num_classes
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)
@@ -234,8 +243,18 @@ if __name__ == "__main__":
     print("Image data shape =", image_shape)
     print("Number of classes =", n_classes)
 
-    # for image in gtsrb.train['features'][:5]:
-    #     print("shape: {0}, min: {1}, max: {2}".format(
-    #         image.shape, image.min(), image.max()))
-    # print(type(gtsrb.train['features'][0]))
+    print()
 
+    print("Testing MNIST...")
+    mnist = ImageDataset(type="MNIST")
+    n_train = len(mnist.x_train)
+    n_valid = len(mnist.x_valid)
+    n_test = len(mnist.x_test)
+    image_shape = mnist.shape
+    n_classes = mnist.num_classes
+
+    print("Number of training examples =", n_train)
+    print("Number of testing examples =", n_test)
+    print("Number of validation examples =", n_valid)
+    print("Image data shape =", image_shape)
+    print("Number of classes =", n_classes)

@@ -17,7 +17,7 @@ class CNN():
     shuffle = 128
     learning_rate = 0.001
 
-    def __init__(self, dataset: ImageDataset, load_dataset=True, num_epochs=100, learning_rate=0.001,
+    def __init__(self, dataset:ImageDataset, load_dataset=True, num_epochs=100, learning_rate=0.001,
                  enable_session=False, dynamic_lr=True, shape=None, num_classes=None):
 
         if enable_session:
@@ -36,23 +36,31 @@ class CNN():
     def build_model(self, epochs=50, learning_rate=0.001,
                     enable_dynamic_lr=True, dataset_loaded=True, shape=None, num_classes=None):
         print("Building model...")
+        x, y, cross_entropy, correct = None, None, None, None
         if dataset_loaded:
-            self.x = tf.placeholder(tf.float32, [None] + self.dataset.shape)
+            self.x = tf.placeholder(tf.float32, [None, self.dataset.shape[1]])
+            self.y = tf.placeholder(tf.float32, [None, self.dataset.num_classes])
+            print("Shape of initial layer:", self.x.shape)
         else:
-            self.x = tf.placeholder(tf.float32, [None] + shape)
+            x = tf.get_default_graph().get_tensor_by_name('moe/x:0')
+            y = tf.get_default_graph().get_tensor_by_name('moe/y:0')
+            print("Shape of initial layer:", x.shape)
 
-        self.y = tf.placeholder(tf.int32, [None])
 
-        print("Shape of initial layer:", self.x.shape)
+        # Reshaping
+        if dataset_loaded:
+            reshaped = tf.reshape(self.x, shape=[-1, 28, 28, 1])
+        else:
+            reshaped = tf.reshape(x, shape=[-1, 28, 28, 1])
 
         # First layer
-        c1_channels = 3
+        c1_channels = 1
         c1_filters = 6
-        c1 = self.conv_layer(input=self.x, input_channels=c1_channels, filters=c1_filters, filter_size=5)
+        c1 = self.conv_layer(input=reshaped, input_channels=c1_channels, filters=c1_filters, filter_size=5)
 
         print("Shape of After 1st layer:", c1.shape)
         # Pooling
-        pool1 = self.pool(layer=c1, ksize=[1,2,2,1], strides=[1,2,2,1])
+        pool1 = self.pool(layer=c1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1])
         print("Shape of After 1st pooling:", pool1.shape)
 
         # Second layer
@@ -62,7 +70,7 @@ class CNN():
         print("Shape of After 2nd layer:", c2.shape)
 
         # Pooling
-        pool2 = self.pool(layer=c2, ksize=[1,2,2,1], strides=[1,2,2,1])
+        pool2 = self.pool(layer=c2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1])
         print("Shape of After 2nd pooling:", pool2.shape)
 
         # Flattened layer
@@ -70,7 +78,7 @@ class CNN():
         print("Shape of After flattening:", flattened.shape)
 
         # First Fully Connected Layer
-        fc1_input = 400
+        fc1_input = 256
         fc1_output = 120
         fc1 = self.fc_layer(input=flattened, inputs=fc1_input, outputs=fc1_output, relu=True)
         print("Shape of After 1st FC:", fc1.shape)
@@ -83,22 +91,26 @@ class CNN():
 
         # Logits
         l_inp = 84
-        l_out = 43
+        if dataset_loaded:
+            l_out = self.dataset.num_classes
+        else:
+            l_out = num_classes
         self.logits = self.fc_layer(input=fc2, inputs=l_inp, outputs=l_out, relu=False)
         print("Shape after logits:", self.logits.shape)
         print()
 
-        # Convert train data labels to one hot encoding to feed into softmax function
         if dataset_loaded:
-            y_to_one_hot = tf.one_hot(self.y, self.dataset.num_classes)
+            cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=self.y)
         else:
-            y_to_one_hot = tf.one_hot(self.y, num_classes)
-
-        cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=y_to_one_hot)
+            cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=y)
 
         self.loss = tf.reduce_mean(cross_entropy)
 
-        correct = tf.equal(tf.argmax(self.logits, axis=1), tf.argmax(y_to_one_hot, axis=1))
+        if dataset_loaded:
+            correct = tf.equal(tf.argmax(self.logits, axis=1), tf.argmax(self.y, axis=1))
+        else:
+            correct = tf.equal(tf.argmax(self.logits, axis=1), tf.argmax(y, axis=1))
+
         self.accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
         self.prediction = tf.argmax(self.logits, axis=1)
 
@@ -126,7 +138,7 @@ class CNN():
                     bx, by = self.tf_sess.run([self.dataset.x_batch, self.dataset.y_batch])
 
                     feed_dict = {
-                        self.x: self.dataset.preprocess(bx),
+                        self.x: bx,
                         self.y: by
                     }
                     self.tf_sess.run(self.optimizer, feed_dict=feed_dict)
@@ -181,10 +193,9 @@ class CNN():
 
             learning_rate *= 1.1
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(self.loss)
-
             bx, by = self.tf_sess.run([self.dataset.x_batch, self.dataset.y_batch])
             feed_dict = {
-                self.x: bx,
+                self.x: bx,#np.reshape(bx, (-1, 28, 28, 1)),
                 self.y: by
             }
 
@@ -216,7 +227,6 @@ class CNN():
         start = rates[dydx.index(max(dydx))]
         print("Chosen start learning rate:", start)
         print()
-
         return start
 
     def create_weights(self, shape:list, stddev=0.05)->tf.Variable:
@@ -224,28 +234,6 @@ class CNN():
 
     def create_biases(self, size:int):
         return tf.Variable(tf.zeros([size]))
-
-    def conv_layer(self, input, input_channels, filters, filter_size):
-        weights = self.create_weights(shape=[filter_size, filter_size, input_channels, filters])
-        biases = self.create_biases(filters)
-
-        layer = tf.nn.conv2d(input=input, filter=weights, strides=[1,1,1,1], padding='VALID')
-        layer += biases
-
-        layer = tf.nn.relu(layer)
-
-        return layer
-
-    def pool(self, layer:tf.nn.conv2d, ksize:list, strides:list, padding='VALID'):
-        return tf.nn.max_pool(layer, ksize=ksize, strides=strides, padding=padding)
-
-    def flatten_layer(self, layer:tf.nn.conv2d):
-        shape = layer.get_shape()
-        features = shape[1:4].num_elements()
-        layer = tf.reshape(layer, [-1, features])
-
-
-        return layer
 
     def fc_layer(self, input, inputs, outputs, relu=True, is_linear=False):
         layer = None
@@ -269,6 +257,28 @@ class CNN():
 
         return layer
 
+    def pool(self, layer:tf.nn.conv2d, ksize:list, strides:list, padding='VALID'):
+        return tf.nn.max_pool(layer, ksize=ksize, strides=strides, padding=padding)
+
+    def flatten_layer(self, layer:tf.nn.conv2d):
+        shape = layer.get_shape()
+        features = shape[1:4].num_elements()
+        layer = tf.reshape(layer, [-1, features])
+
+
+        return layer
+
+    def conv_layer(self, input, input_channels, filters, filter_size):
+        weights = self.create_weights(shape=[filter_size, filter_size, input_channels, filters])
+        biases = self.create_biases(filters)
+
+        layer = tf.nn.conv2d(input=input, filter=weights, strides=[1, 1, 1, 1], padding='VALID')
+        layer += biases
+
+        layer = tf.nn.relu(layer)
+
+        return layer
+
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
@@ -276,21 +286,19 @@ if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     print("TensorFlow Version: ", tf.__version__)
 
-    path = "GTSRB/"
-    gtsrb = ImageDataset(path)
-    n_train = len(gtsrb.x_train)
-    n_valid = len(gtsrb.x_valid)
-    n_test = len(gtsrb.x_test)
-    width, height = len(gtsrb.x_test[0]), len(gtsrb.x_test[0][0])
-    image_shape = (width, height)
-    n_classes = len(set(gtsrb.y_test))
+    mnist = ImageDataset(type='MNIST')
+    n_train = len(mnist.x_train)
+    n_valid = len(mnist.x_valid)
+    n_test = len(mnist.x_test)
+    image_shape = mnist.shape
+    n_classes = mnist.num_classes
 
     epochs = 50
     learning_rate = 1e-3
     enable_session = True
     dynamic_lr = True
-    shape = gtsrb.shape
-    num_classes = gtsrb.num_classes
+    shape = mnist.num_classes
+    num_classes = mnist.num_classes
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)
@@ -300,7 +308,7 @@ if __name__ == "__main__":
     print()
 
     start = datetime.now()
-    cnn = CNN(dataset=gtsrb,
+    cnn = CNN(dataset=mnist,
               num_epochs=epochs,
               learning_rate=learning_rate,
               enable_session=enable_session,

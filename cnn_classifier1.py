@@ -25,7 +25,7 @@ class CNN():
 
         if load_dataset:
             self.dataset = dataset
-        # self.setup_batch_iterator()
+
         self.build_model(epochs=num_epochs,
                          learning_rate=learning_rate,
                          enable_dynamic_lr=dynamic_lr,
@@ -33,7 +33,8 @@ class CNN():
                          shape=shape,
                          num_classes=num_classes)
 
-    def build_model(self, epochs=50, learning_rate=0.001, enable_dynamic_lr=True, dataset_loaded=True, shape=None, num_classes=None):
+    def build_model(self, epochs=50, learning_rate=0.001,
+                    enable_dynamic_lr=True, dataset_loaded=True, shape=None, num_classes=None):
         print("Building model...")
         if dataset_loaded:
             self.x = tf.placeholder(tf.float32, [None] + self.dataset.shape)
@@ -67,8 +68,8 @@ class CNN():
         # Logits
         l_inp = 500
         l_out = 43
-        logits = self.fc_layer(input=fc1, inputs=l_inp, outputs=l_out, relu=False)
-        print("Shape after logits:", logits.shape)
+        self.logits = self.fc_layer(input=fc1, inputs=l_inp, outputs=l_out, relu=False)
+        print("Shape after logits:", self.logits.shape)
         print()
 
         # Convert train data labels to one hot encoding to feed into softmax function
@@ -77,28 +78,24 @@ class CNN():
         else:
             y_to_one_hot = tf.one_hot(self.y, num_classes)
 
-        cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=y_to_one_hot)
+        cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.logits, labels=y_to_one_hot)
 
         self.loss = tf.reduce_mean(cross_entropy)
-        # print("Loss: ", self.loss)
 
 
-        correct = tf.equal(tf.argmax(logits, axis=1), tf.argmax(y_to_one_hot, axis=1))
-        # correct =
-        # print(correct)
+        correct = tf.equal(tf.argmax(self.logits, axis=1), tf.argmax(y_to_one_hot, axis=1))
         self.accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
-        # print("Accuracy", self.accuracy)
-        self.prediction = tf.argmax(logits, axis=1)
-        # print("Prediction", self.prediction)
+        self.prediction = tf.argmax(self.logits, axis=1)
 
         # Get starting learning rate
         if enable_dynamic_lr:
-            self.learning_rate = self.get_optimal_learning_rate(epochs=epochs, learning_rate=learning_rate, plot_charts=False)
+            self.learning_rate = self.get_optimal_learning_rate(epochs=epochs,
+                                                                learning_rate=learning_rate,
+                                                                plot_charts=False)
         else:
             self.learning_rate = learning_rate
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(self.loss)
-        # print("Optimizer:", self.optimizer)
 
     def train_model(self, epochs:int, limit=6):
         print("Training model...")
@@ -112,20 +109,17 @@ class CNN():
                 total = 0
                 while 1:
                     bx, by = self.tf_sess.run([self.dataset.x_batch, self.dataset.y_batch])
-                    # print("Batch " + str(i + 1))
-                    # print("X_batch:", bx.shape)
-                    # print("Y_batch:", by.shape)
-                    # print()
+
                     feed_dict = {
-                        self.x: self.dataset.preprocess(bx),#.reshape((-1, 32, 32, 3)),
-                        self.y: by#.reshape((-1))
+                        self.x: self.dataset.preprocess(bx),
+                        self.y: by
                     }
                     self.tf_sess.run(self.optimizer, feed_dict=feed_dict)
                     loss, acc = self.tf_sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
                     total += acc * len(by)
                     total_loss += loss * len(by)
                     total_acc += acc * len(by)
-                    # print(total / len(self.dataset.y_train))
+
             except(tf.errors.OutOfRangeError):
                 pass
 
@@ -160,13 +154,6 @@ class CNN():
         print(f'test accuracy = {acc:.4f}')
 
     def get_optimal_learning_rate(self, epochs=50, learning_rate=1e-5, plot_charts=False):
-        # if self.tf_sess is not None and self.tf_sess._closed == False:
-        #     print("Restarting session for learning rate...")
-        #     self.tf_sess.close()
-        #     self.tf_sess = tf.Session()
-        # else:
-        #     print("Creating new session for learning rate...")
-        #     self.tf_sess = tf.Session()
 
         print("Finding optimal learning rate...")
         self.tf_sess.run(tf.global_variables_initializer())
@@ -176,9 +163,6 @@ class CNN():
 
         self.tf_sess.run(self.dataset.train_init)
         for i in range(epochs):
-            # Store learning rate in a tf variable and update it
-            # g_step = tf.Variable(0, trainable=False)
-            # lr = tf.train.exponential_decay(learning_rate, g_step, 100000, 0.96, staircase=True)
 
             learning_rate *= 1.1
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(self.loss)
@@ -233,7 +217,6 @@ class CNN():
         layer = tf.nn.conv2d(input=input, filter=weights, strides=[1,1,1,1], padding='VALID')
         layer += biases
 
-        # layer = self.pool(layer=layer, ksize=[1,2,2,1], strides=[1,2,2,1])
         layer = tf.nn.relu(layer)
 
         return layer
@@ -249,11 +232,21 @@ class CNN():
 
         return layer
 
-    def fc_layer(self, input, inputs, outputs, relu=True):
-        weights = self.create_weights(shape=[inputs, outputs])
-        biases = self.create_biases(outputs)
+    def fc_layer(self, input, inputs, outputs, relu=True, is_linear=False):
+        layer = None
 
-        layer = tf.matmul(input, weights)
+        if is_linear:
+            weights = self.create_weights(shape=[inputs.get_shape()[-1], outputs])
+            biases = self.create_biases(outputs)
+
+            layer = tf.matmul(inputs, weights)
+
+        else:
+            weights = self.create_weights(shape=[inputs, outputs])
+            biases = self.create_biases(outputs)
+
+            layer = tf.matmul(input, weights)
+
         layer += biases
 
         if relu:
@@ -281,8 +274,8 @@ if __name__ == "__main__":
     learning_rate = 1e-3
     enable_session = True
     dynamic_lr = True
-    shape = (32,32,3)
-    num_classes = 43
+    shape = gtsrb.shape
+    num_classes = gtsrb.num_classes
 
     print("Number of training examples =", n_train)
     print("Number of testing examples =", n_test)

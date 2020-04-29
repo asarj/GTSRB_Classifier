@@ -130,6 +130,7 @@ dmypy.json
 
 # GTRSB Dataset
 GTSRB/
+data/
 *.zip
 *.idea/
 *.p
